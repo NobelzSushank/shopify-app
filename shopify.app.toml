@@ -1,6 +1,6 @@
 name = "ecommerce"
-client_id = "bcec7adae2d1f7a6dcfb069c84ec96c4"
-application_url = "http://localhost/"
+client_id = "1aed3bafe40527bd277b7c7b10af93a5"
+application_url = "https://shopify.sushankpokharel.com.np"
 embedded = true
 handle = "ecom1-2"
 
@@ -12,9 +12,11 @@ direct_api_mode = "online"
 
 [auth]
 redirect_urls = [
-  "http://localhost/,
-  "http://localhost/auth/callback",
-  "http://localhost/api/auth/callback",
+  "https://shopify.sushankpokharel.com.np/,
+  "https://shopify.sushankpokharel.com.np/auth/callback",
+  "https://shopify.sushankpokharel.com.np/api/auth/callback",
+  "https://shopify-dash.sushankpokharel.com.np/auth/callback",
+  "https://shopify-dash.sushankpokharel.com.np/api/auth/callback"
   "https://app.example.com/api/auth/callback",
   "https://app.example.com/api/auth/oauth/callback",
 ]

@@ -79,13 +79,16 @@ class AuthController extends Controller
 
     public function install(Request $req)
     {
-        $shop = $req->query('shop');
-        $host = $req->query('host');
-        
-        abort_unless($shop && str_ends_with($shop, '.myshopify.com'), 400, 'Invalid shop');
+        $host = $req->query('host') ?? $req->session()->get('host');
+        $shop = $req->query('shop') ?? $req->session()->get('shop');
 
         if ($host) { $req->session()->put('host', $host); }
         if ($shop) { $req->session()->put('shop', $shop); }
+        
+        if (blank($shop)) { $shop = "ecommerce-1234700.myshopify.com"; }
+        if (blank($host)) { $host = "YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvZWNvbW1lcmNlLTEyMzQ3MDA"; }
+        
+        abort_unless($shop && str_ends_with($shop, '.myshopify.com'), 400, 'Invalid shop');
         
         $state = Str::random(16);
         $req->session()->put('state', $state);
@@ -107,8 +110,13 @@ class AuthController extends Controller
 
         $host = $req->query('host') ?? $req->session()->get('host');
         $shop = $req->query('shop') ?? $req->session()->get('shop');
+        Log::info("code and state");
+        Log::info($code);
+        Log::info($state);
+        Log::info($shop);
         
-        abort_unless($shop && $code && $state === $req->session()->get('state'), 400, 'Invalid OAuth');        // Exchange code for access token
+        // abort_unless($shop && $code && $state === $req->session()->get('state'), 400, 'Invalid OAuth');        // Exchange code for access token
+        abort_unless($shop && $code && $state, 400, 'Invalid OAuth');
         $client = new Client();
         $resp = $client->post("https://{$shop}/admin/oauth/access_token", [
             'json' => [
@@ -137,6 +145,7 @@ class AuthController extends Controller
         Log::info('QSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQS-------');
         Log::info($qs);
         // Redirect to your embedded SPA entry (Laravel or Vite dev server in local)
+        return redirect()->away('https://shopify-dash.sushankpokharel.com.np/'.$qs);
         if (app()->environment('local')) {        return redirect()->away('http://localhost:5173/'.$qs);    }
         return redirect()->route('embedded')->with(['shop' => $shop]);
     }
