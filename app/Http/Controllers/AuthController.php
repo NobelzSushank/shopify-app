@@ -79,14 +79,19 @@ class AuthController extends Controller
 
     public function install(Request $req)
     {
-        $host = $req->query('host') ?? $req->session()->get('host');
-        $shop = $req->query('shop') ?? $req->session()->get('shop');
+         $shop = $req->query('shop');
+        $host = $req->query('host');
 
-        if ($host) { $req->session()->put('host', $host); }
-        if ($shop) { $req->session()->put('shop', $shop); }
+
+        abort_unless(
+            $shop && str_ends_with($shop, '.myshopify.com'),
+            400,
+            'Invalid shop'
+        );
+
+        $req->session()->put('shop', $shop);
+        $req->session()->put('host', $host);
         
-        if (blank($shop)) { $shop = "ecommerce-1234700.myshopify.com"; }
-        if (blank($host)) { $host = "YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvZWNvbW1lcmNlLTEyMzQ3MDA"; }
         
         abort_unless($shop && str_ends_with($shop, '.myshopify.com'), 400, 'Invalid shop');
         
@@ -104,50 +109,83 @@ class AuthController extends Controller
     
     public function callback(Request $req): RedirectResponse
     {
-        // $shop   = $req->query('shop');
-        $code   = $req->query('code');
-        $state  = $req->query('state');
+        $shop  = $req->query('shop') ?? $req->session()->get('shop');
+        $host  = $req->query('host') ?? $req->session()->get('host');
+        $code  = $req->query('code');
+        $state = $req->query('state');
 
-        $host = $req->query('host') ?? $req->session()->get('host');
-        $shop = $req->query('shop') ?? $req->session()->get('shop');
-        Log::info("code and state");
+        Log::info("code");
         Log::info($code);
+        Log::info("state");
         Log::info($state);
+        Log::info("session State");
+        Log::info($req->session()->get('state'));
+        Log::info("shop");
         Log::info($shop);
-        
-        // abort_unless($shop && $code && $state === $req->session()->get('state'), 400, 'Invalid OAuth');        // Exchange code for access token
-        abort_unless($shop && $code && $state, 400, 'Invalid OAuth');
-        $client = new Client();
-        $resp = $client->post("https://{$shop}/admin/oauth/access_token", [
-            'json' => [
-                'client_id'     => env('SHOPIFY_API_KEY'),
-                'client_secret' => env('SHOPIFY_API_SECRET'),
-                'code'          => $code,
-            ],
+
+        abort_unless(
+            $shop && $code && $state === $req->session()->get('state'),
+            400,
+            'Invalid OAuth'
+        );
+
+        $response = Http::post("https://{$shop}/admin/oauth/access_token", [
+            'client_id'     => env('SHOPIFY_API_KEY'),
+            'client_secret' => env('SHOPIFY_API_SECRET'),
+            'code'          => $code,
         ]);
+
+        $token = $response['access_token'] ?? null;
+        abort_unless($token, 500, 'No access token');
         
-        $data = json_decode((string)$resp->getBody(), true);
-        $token = $data['access_token'] ?? null;
-        abort_unless($token, 500, 'No token');
+        // $client = new Client();
+        // $resp = $client->post("https://{$shop}/admin/oauth/access_token", [
+        //     'json' => [
+        //         'client_id'     => env('SHOPIFY_API_KEY'),
+        //         'client_secret' => env('SHOPIFY_API_SECRET'),
+        //         'code'          => $code,
+        //     ],
+        // ]);
+        
+        // $data = json_decode((string)$resp->getBody(), true);
+        // $token = $data['access_token'] ?? null;
+        // abort_unless($token, 500, 'No token');
+        
+
         $shopModel = Shop::updateOrCreate(
             ['domain' => $shop],
-            ['access_token' => $token, 'scope' => env('SHOPIFY_SCOPES'), 'installed_at' => now()]
-        );        // Set session for backend API
+            [
+                'access_token' => $token,
+                'scope'        => env('SHOPIFY_SCOPES'),
+                'installed_at' => now(),
+            ]
+        );
         
         $req->session()->put('shop_id', $shopModel->id);        // Redirect to embedded app route (frontend served here)
 
         // Build the minimal query App Bridge needs.
-        $params = [];
-        if ($host) $params['host'] = $host;
-        if ($shop) $params['shop'] = $shop;
-        $qs = $params ? ('?'.http_build_query($params)) : '';
+        // $params = [];
+        // if ($host) $params['host'] = $host;
+        // if ($shop) $params['shop'] = $shop;
+        // $qs = $params ? ('?'.http_build_query($params)) : '';
+
+        $qs = http_build_query([
+            'shop' => $shop,
+            'host' => $host,
+        ]);
 
         Log::info('QSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQSQS-------');
         Log::info($qs);
         // Redirect to your embedded SPA entry (Laravel or Vite dev server in local)
-        return redirect()->away('https://shopify-dash.sushankpokharel.com.np/'.$qs);
-        if (app()->environment('local')) {        return redirect()->away('http://localhost:5173/'.$qs);    }
-        return redirect()->route('embedded')->with(['shop' => $shop]);
+        // return redirect()->away('https://shopify-dash.sushankpokharel.com.np/'.$qs);
+        // if (app()->environment('local')) {        return redirect()->away('http://localhost:5173/'.$qs);    }
+        // return redirect()->route('embedded')->with(['shop' => $shop]);
+
+        if (app()->environment('local')) {
+            return redirect()->away("http://localhost:5173/?{$qs}");
+        }
+
+        return redirect()->away("https://shopify-dash.sushankpokharel.com.np/?{$qs}");
     }
     
     public function embedded(Request $req)
